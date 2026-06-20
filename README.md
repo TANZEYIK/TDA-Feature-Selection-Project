@@ -20,10 +20,10 @@ Each algorithm searches for a binary feature subset:
 - `1` means the feature is selected.
 - `0` means the feature is excluded.
 
-The selected feature subset is evaluated using a K-Nearest Neighbors classifier.
-KNN is not the main algorithm being compared. It is only the evaluation model
-used to judge whether a selected feature subset gives good classification
-performance.
+The selected feature subset is evaluated using a linear Support Vector Machine
+classifier trained with stochastic gradient descent. The classifier is not the
+main algorithm being compared. It is only the evaluation model used to judge
+whether a selected feature subset gives good classification performance.
 
 ## Project Structure
 
@@ -97,7 +97,7 @@ dataset being evaluated.
 The code uses three sets:
 
 ```text
-train set       -> train the KNN model
+train set       -> train the linear SVM model
 validation set  -> calculate fitness during algorithm search
 test set        -> report final accuracy only after the best subset is selected
 ```
@@ -144,7 +144,7 @@ python main.py
 Recommended final experiment:
 
 ```powershell
-python main.py --population-size 10 --iterations 10 --output-dir results_final
+python main.py --population-size 10 --iterations 30 --output-dir results_final
 ```
 
 Run a quick check before the final experiment:

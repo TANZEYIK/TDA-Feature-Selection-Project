@@ -166,7 +166,7 @@ def parse_args() -> argparse.Namespace:
         help="Datasets to use in the experiment.",
     )
     parser.add_argument("--population-size", type=int, default=10)
-    parser.add_argument("--iterations", type=int, default=10)
+    parser.add_argument("--iterations", type=int, default=30)
     parser.add_argument("--random-state", type=int, default=42)
     parser.add_argument("--output-dir", type=Path, default=Path("results"))
     return parser.parse_args()

@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Callable
 
 import numpy as np
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score
-from sklearn.neighbors import KNeighborsClassifier
 
 from utils.helpers import ensure_non_empty
 
@@ -23,9 +23,17 @@ def make_accuracy_function(
 
     def evaluate_accuracy(mask: np.ndarray) -> float:
         mask = ensure_non_empty(mask, rng).astype(bool)
-        model = KNeighborsClassifier(n_neighbors=5)
-        model.fit(x_train[:, mask], y_train)
-        prediction = model.predict(x_evaluation[:, mask])
+        selected_x_train = x_train[:, mask]
+        selected_x_evaluation = x_evaluation[:, mask]
+        model = SGDClassifier(
+            loss="hinge",
+            alpha=0.0001,
+            max_iter=1000,
+            tol=1e-3,
+            random_state=42,
+        )
+        model.fit(selected_x_train, y_train)
+        prediction = model.predict(selected_x_evaluation)
         return accuracy_score(y_evaluation, prediction)
 
     return evaluate_accuracy
