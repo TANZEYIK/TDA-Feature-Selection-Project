@@ -50,10 +50,11 @@ part2_feature_selection/
 |   `-- madelon.arff
 `-- results/
     |-- execution_time_results.csv
-    |-- figure_1_execution_time_vs_input_size.png
-    |-- figure_2_test_accuracy_vs_input_size.png
-    |-- figure_3_selected_features_vs_input_size.png
-    `-- figure_4_convergence_curve.png
+    |-- arcene_summary.png
+    |-- dexter_summary.png
+    |-- dorothea_summary.png
+    |-- gisette_summary.png
+    `-- madelon_summary.png
 ```
 
 ## Datasets
@@ -75,23 +76,21 @@ reproducible when the project is run on another computer.
 
 ## Input Sizes
 
-The experiment uses different feature-pool sizes to construct the execution
-time graph.
+The experiment runs each dataset using its full feature set.
 
-Default input sizes:
+Default full input sizes:
 
 ```text
-arcene:   100, 200, 300, 400, 500
-gisette:  100, 200, 300, 400, 500
-dexter:   100, 200, 300, 400, 500
-dorothea: 100, 200, 300, 400, 500
-madelon:  100, 200, 300, 400, 500
+arcene:   10,000 features
+gisette:  5,000 features
+dexter:   20,000 features
+dorothea: 100,000 features
+madelon:  500 features
 ```
 
-For each input size, the code selects a deterministic random subset from the
-full feature pool. This is better than always taking the first N features,
-because it reduces the risk that the early columns are unusually easy or
-unrepresentative.
+The code no longer samples partial feature pools such as 100, 200, 300, 400,
+and 500 features. Each algorithm searches over the full feature space of the
+dataset being evaluated.
 
 ## Data Splitting
 
@@ -122,6 +121,12 @@ This means a better solution should:
 
 The final test accuracy is reported separately after the algorithm finishes.
 
+## Early Stopping
+
+Each algorithm stops early if the best fitness does not improve by at least
+`0.001` for 5 consecutive iterations. The convergence history records the best
+fitness values up to the actual final iteration.
+
 ## How to Run
 
 Install the required packages if needed:
@@ -145,13 +150,7 @@ python main.py --population-size 10 --iterations 10 --output-dir results_final
 Run a quick check before the final experiment:
 
 ```powershell
-python main.py --datasets madelon --input-sizes 100 --population-size 3 --iterations 2 --output-dir results_quick_check
-```
-
-Custom input sizes can also be provided:
-
-```powershell
-python main.py --datasets arcene gisette dexter dorothea madelon --input-sizes 100 200 300 400 500 --population-size 10 --iterations 10
+python main.py --datasets madelon --population-size 3 --iterations 2 --output-dir results_quick_check
 ```
 
 ## Output Files
@@ -160,19 +159,15 @@ The output folder contains:
 
 ```text
 execution_time_results.csv
-figure_1_execution_time_vs_input_size.png
-figure_2_test_accuracy_vs_input_size.png
-figure_3_selected_features_vs_input_size.png
-figure_4_convergence_curve.png
+arcene_summary.png
+dexter_summary.png
+dorothea_summary.png
+gisette_summary.png
+madelon_summary.png
 ```
 
-When more than one dataset is used, the graph files are prefixed with the
-dataset name, for example:
-
-```text
-arcene_figure_1_execution_time_vs_input_size.png
-madelon_figure_1_execution_time_vs_input_size.png
-```
+Each summary PNG contains the execution time, final test accuracy, selected
+feature count, and convergence curve for one dataset.
 
 The CSV file contains:
 
@@ -184,8 +179,10 @@ The CSV file contains:
 - `validation_accuracy`
 - `test_accuracy`
 - `selected_count`
-- `selected_features`
+- `selected_feature_preview`
 - `convergence_history`
+- `iterations_run`
+- `stopped_early`
 
 ## Report Usage
 

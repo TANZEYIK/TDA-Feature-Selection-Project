@@ -21,14 +21,14 @@ from algorithms.bga import binary_genetic_algorithm
 from algorithms.bgwo import binary_grey_wolf_optimizer
 from algorithms.bpso import binary_particle_swarm_optimization
 from algorithms.bwoa import binary_whale_optimization_algorithm
-from utils.data_loader import prepare_dataset
+from utils.data_loader import PreparedDataset, prepare_dataset
 from utils.fitness import make_accuracy_function, make_fitness_function
-from utils.plotting import (
-    plot_accuracy,
-    plot_convergence,
-    plot_execution_time,
-    plot_selected_feature_count,
-)
+from utils.plotting import plot_dataset_summary
+
+
+EARLY_STOPPING_PATIENCE = 5
+MIN_DELTA = 0.001
+SELECTED_FEATURE_PREVIEW_LIMIT = 30
 
 
 @dataclass
@@ -41,26 +41,32 @@ class RunResult:
     validation_accuracy: float
     test_accuracy: float
     selected_count: int
-    selected_features: str
+    selected_feature_preview: str
     convergence_history: str
+    iterations_run: int
+    stopped_early: bool
+
+
+def selected_feature_preview(feature_names: np.ndarray, mask: np.ndarray) -> str:
+    """Return a compact preview of selected feature names for readable CSV output."""
+    selected_names = feature_names[mask.astype(bool)]
+    preview_names = selected_names[:SELECTED_FEATURE_PREVIEW_LIMIT]
+    preview = ", ".join(preview_names)
+    remaining_count = len(selected_names) - len(preview_names)
+    if remaining_count > 0:
+        preview = f"{preview}, ... (+{remaining_count} more)"
+    return preview
 
 
 def run_single_algorithm(
-    dataset_name: str,
+    dataset: PreparedDataset,
     algorithm_name: str,
-    algorithm_fn: Callable[..., tuple[np.ndarray, float, list[float]]],
-    input_features: int,
+    algorithm_fn: Callable[..., tuple[np.ndarray, float, list[float], bool]],
     population_size: int,
     iterations: int,
-    dataset_random_state: int,
     algorithm_random_state: int,
 ) -> RunResult:
     rng = np.random.default_rng(algorithm_random_state)
-    dataset = prepare_dataset(
-        dataset_name,
-        input_features,
-        dataset_random_state,
-    )
     fitness_fn, validation_accuracy_fn = make_fitness_function(
         dataset.x_train,
         dataset.x_validation,
@@ -70,8 +76,8 @@ def run_single_algorithm(
     )
 
     start = time.perf_counter()
-    best_mask, best_fitness, convergence_history = algorithm_fn(
-        input_features,
+    best_mask, best_fitness, convergence_history, stopped_early = algorithm_fn(
+        dataset.input_features,
         fitness_fn,
         rng,
         population_size,
@@ -80,6 +86,8 @@ def run_single_algorithm(
             f"  iteration {iteration}/{iterations}, best_fitness={score:.6f}",
             flush=True,
         ),
+        early_stopping_patience=EARLY_STOPPING_PATIENCE,
+        min_delta=MIN_DELTA,
     )
     runtime = time.perf_counter() - start
 
@@ -92,18 +100,19 @@ def run_single_algorithm(
         rng,
     )
     test_accuracy = test_accuracy_fn(best_mask)
-    selected_names = dataset.feature_names[best_mask.astype(bool)]
     return RunResult(
-        dataset=dataset_name,
+        dataset=dataset.dataset_name,
         algorithm=algorithm_name,
-        input_features=input_features,
+        input_features=dataset.input_features,
         runtime_seconds=runtime,
         best_fitness=best_fitness,
         validation_accuracy=validation_accuracy,
         test_accuracy=test_accuracy,
         selected_count=int(best_mask.sum()),
-        selected_features=", ".join(selected_names),
+        selected_feature_preview=selected_feature_preview(dataset.feature_names, best_mask),
         convergence_history=";".join(f"{value:.10g}" for value in convergence_history),
+        iterations_run=max(len(convergence_history) - 1, 0),
+        stopped_early=stopped_early,
     )
 
 
@@ -117,38 +126,34 @@ def run_experiment(args: argparse.Namespace) -> pd.DataFrame:
 
     all_results: list[RunResult] = []
     for dataset_index, dataset_name in enumerate(args.datasets):
-        input_sizes = args.input_sizes or default_input_sizes(dataset_name)
-        for input_features in input_sizes:
-            dataset_seed = args.random_state + dataset_index * 100000 + input_features * 100
-            for algorithm_index, (name, function) in enumerate(algorithms.items()):
-                algorithm_seed = args.random_state + dataset_index * 100000 + input_features * 1000 + algorithm_index
-                print(f"Running {name} on {dataset_name} with {input_features} features...", flush=True)
-                result = run_single_algorithm(
-                    dataset_name,
-                    name,
-                    function,
-                    input_features,
-                    args.population_size,
-                    args.iterations,
-                    dataset_seed,
-                    algorithm_seed,
-                )
-                all_results.append(result)
-                print(
-                    f"  validation_accuracy={result.validation_accuracy:.4f}, "
-                    f"test_accuracy={result.test_accuracy:.4f}, "
-                    f"selected={result.selected_count}, "
-                    f"time={result.runtime_seconds:.4f}s",
-                    flush=True,
-                )
+        dataset_seed = args.random_state + dataset_index * 100000
+        dataset = prepare_dataset(dataset_name, dataset_seed)
+        for algorithm_index, (name, function) in enumerate(algorithms.items()):
+            algorithm_seed = args.random_state + dataset_index * 100000 + algorithm_index
+            print(
+                f"Running {name} on {dataset_name} with {dataset.input_features} features...",
+                flush=True,
+            )
+            result = run_single_algorithm(
+                dataset,
+                name,
+                function,
+                args.population_size,
+                args.iterations,
+                algorithm_seed,
+            )
+            all_results.append(result)
+            print(
+                f"  validation_accuracy={result.validation_accuracy:.4f}, "
+                f"test_accuracy={result.test_accuracy:.4f}, "
+                f"selected={result.selected_count}, "
+                f"iterations_run={result.iterations_run}, "
+                f"stopped_early={result.stopped_early}, "
+                f"time={result.runtime_seconds:.4f}s",
+                flush=True,
+            )
 
     return pd.DataFrame([result.__dict__ for result in all_results])
-
-
-def default_input_sizes(dataset_name: str) -> list[int]:
-    if dataset_name in {"arcene", "gisette", "dexter", "dorothea", "madelon"}:
-        return [100, 200, 300, 400, 500]
-    raise ValueError(f"Unsupported dataset: {dataset_name}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -159,13 +164,6 @@ def parse_args() -> argparse.Namespace:
         default=["arcene", "gisette", "dexter", "dorothea", "madelon"],
         choices=["arcene", "gisette", "dexter", "dorothea", "madelon"],
         help="Datasets to use in the experiment.",
-    )
-    parser.add_argument(
-        "--input-sizes",
-        type=int,
-        nargs="+",
-        default=None,
-        help="Different numbers of features used as input sizes. If omitted, each dataset uses its default sizes.",
     )
     parser.add_argument("--population-size", type=int, default=10)
     parser.add_argument("--iterations", type=int, default=10)
@@ -179,8 +177,6 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("population-size must be at least 3 for BGA tournament selection and BGWO leaders.")
     if args.iterations < 1:
         raise ValueError("iterations must be at least 1.")
-    if args.input_sizes is not None and any(input_size < 1 for input_size in args.input_sizes):
-        raise ValueError("All input sizes must be at least 1.")
 
 
 def save_results_csv(results: pd.DataFrame, csv_path: Path) -> Path:
@@ -209,23 +205,9 @@ def main() -> None:
     generated_figures: list[Path] = []
     for dataset_name in results["dataset"].drop_duplicates():
         dataset_results = results[results["dataset"] == dataset_name]
-        prefix = "" if len(results["dataset"].unique()) == 1 else f"{dataset_name}_"
-        runtime_graph_path = args.output_dir / f"{prefix}figure_1_execution_time_vs_input_size.png"
-        accuracy_graph_path = args.output_dir / f"{prefix}figure_2_test_accuracy_vs_input_size.png"
-        selected_count_graph_path = args.output_dir / f"{prefix}figure_3_selected_features_vs_input_size.png"
-        convergence_graph_path = args.output_dir / f"{prefix}figure_4_convergence_curve.png"
-        plot_execution_time(dataset_results, runtime_graph_path, dataset_name)
-        plot_accuracy(dataset_results, accuracy_graph_path, dataset_name)
-        plot_selected_feature_count(dataset_results, selected_count_graph_path, dataset_name)
-        plot_convergence(dataset_results, convergence_graph_path, dataset_name)
-        generated_figures.extend(
-            [
-                runtime_graph_path,
-                accuracy_graph_path,
-                selected_count_graph_path,
-                convergence_graph_path,
-            ]
-        )
+        summary_graph_path = args.output_dir / f"{dataset_name}_summary.png"
+        plot_dataset_summary(dataset_results, summary_graph_path, dataset_name)
+        generated_figures.append(summary_graph_path)
 
     print("\nExperiment complete.")
     print(f"Results CSV: {saved_csv_path}")

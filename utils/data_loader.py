@@ -142,25 +142,13 @@ def _parse_sparse_arff_rows(data_lines: list[str], n_features: int) -> tuple[csr
     return x, np.asarray(labels)
 
 
-def prepare_dataset(dataset_name: str, input_features: int, random_state: int) -> PreparedDataset:
-    """Load, split, and scale a fixed-size feature pool for the experiment."""
+def prepare_dataset(dataset_name: str, random_state: int) -> PreparedDataset:
+    """Load, split, and scale the full feature set for one dataset."""
     x, y, all_feature_names = load_dataset(dataset_name)
     total_features = x.shape[1]
-    if input_features < 1 or input_features > total_features:
-        raise ValueError(
-            f"input_features must be between 1 and {total_features}, got {input_features}."
-        )
 
-    rng = np.random.default_rng(random_state)
-    if input_features == total_features:
-        feature_indices = np.arange(total_features)
-    else:
-        feature_indices = np.sort(rng.choice(total_features, size=input_features, replace=False))
-
-    x = x[:, feature_indices]
     if issparse(x):
         x = x.tocsr()
-    feature_names = all_feature_names[feature_indices]
 
     x_train_validation, x_test, y_train_validation, y_test = train_test_split(
         x,
@@ -184,12 +172,12 @@ def prepare_dataset(dataset_name: str, input_features: int, random_state: int) -
 
     return PreparedDataset(
         dataset_name=dataset_name,
-        input_features=input_features,
+        input_features=total_features,
         x_train=x_train,
         x_validation=x_validation,
         x_test=x_test,
         y_train=y_train,
         y_validation=y_validation,
         y_test=y_test,
-        feature_names=feature_names,
+        feature_names=all_feature_names,
     )

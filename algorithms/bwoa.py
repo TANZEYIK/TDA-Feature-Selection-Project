@@ -18,7 +18,9 @@ def binary_whale_optimization_algorithm(
     population_size: int,
     iterations: int,
     progress_callback: Callable[[int, float], None] | None = None,
-) -> tuple[np.ndarray, float, list[float]]:
+    early_stopping_patience: int = 5,
+    min_delta: float = 0.001,
+) -> tuple[np.ndarray, float, list[float], bool]:
     """Binary Whale Optimization Algorithm for feature subset selection."""
     positions = rng.uniform(0, 1, size=(population_size, n_features))
     binary_positions = (positions > 0.5).astype(int)
@@ -31,6 +33,8 @@ def binary_whale_optimization_algorithm(
     best_mask = binary_positions[best_index].copy()
     best_score = float(scores[best_index])
     best_fitness_history = [best_score]
+    no_improvement_count = 0
+    stopped_early = False
 
     for iteration in range(iterations):
         a = 2 - 2 * (iteration / max(iterations - 1, 1))
@@ -64,12 +68,23 @@ def binary_whale_optimization_algorithm(
         scores = np.array([fitness_fn(mask) for mask in binary_positions])
         current_best_index = int(np.argmin(scores))
         current_best_score = float(scores[current_best_index])
-        if current_best_score < best_score:
+        if best_score - current_best_score >= min_delta:
             best_score = current_best_score
             best_position = positions[current_best_index].copy()
             best_mask = binary_positions[current_best_index].copy()
+            no_improvement_count = 0
+        elif current_best_score < best_score:
+            best_score = current_best_score
+            best_position = positions[current_best_index].copy()
+            best_mask = binary_positions[current_best_index].copy()
+            no_improvement_count += 1
+        else:
+            no_improvement_count += 1
         best_fitness_history.append(best_score)
         if progress_callback is not None:
             progress_callback(iteration + 1, best_score)
+        if no_improvement_count >= early_stopping_patience:
+            stopped_early = True
+            break
 
-    return best_mask, best_score, best_fitness_history
+    return best_mask, best_score, best_fitness_history, stopped_early

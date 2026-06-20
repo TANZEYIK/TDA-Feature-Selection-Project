@@ -17,9 +17,11 @@ def binary_genetic_algorithm(
     population_size: int,
     iterations: int,
     progress_callback: Callable[[int, float], None] | None = None,
+    early_stopping_patience: int = 5,
+    min_delta: float = 0.001,
     crossover_rate: float = 0.80,
     mutation_rate: float = 0.05,
-) -> tuple[np.ndarray, float, list[float]]:
+) -> tuple[np.ndarray, float, list[float], bool]:
     """Binary Genetic Algorithm for feature subset selection."""
     population = rng.integers(0, 2, size=(population_size, n_features))
     for i in range(population_size):
@@ -30,6 +32,8 @@ def binary_genetic_algorithm(
     best_mask = population[best_index].copy()
     best_score = float(scores[best_index])
     best_fitness_history = [best_score]
+    no_improvement_count = 0
+    stopped_early = False
 
     def tournament_select() -> np.ndarray:
         candidates = rng.choice(population_size, size=3, replace=False)
@@ -61,11 +65,21 @@ def binary_genetic_algorithm(
         scores = np.array([fitness_fn(individual) for individual in population])
         current_best_index = int(np.argmin(scores))
         current_best_score = float(scores[current_best_index])
-        if current_best_score < best_score:
+        if best_score - current_best_score >= min_delta:
             best_score = current_best_score
             best_mask = population[current_best_index].copy()
+            no_improvement_count = 0
+        elif current_best_score < best_score:
+            best_score = current_best_score
+            best_mask = population[current_best_index].copy()
+            no_improvement_count += 1
+        else:
+            no_improvement_count += 1
         best_fitness_history.append(best_score)
         if progress_callback is not None:
             progress_callback(iteration, best_score)
+        if no_improvement_count >= early_stopping_patience:
+            stopped_early = True
+            break
 
-    return best_mask, best_score, best_fitness_history
+    return best_mask, best_score, best_fitness_history, stopped_early

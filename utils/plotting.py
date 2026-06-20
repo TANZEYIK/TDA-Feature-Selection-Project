@@ -5,104 +5,51 @@ from pathlib import Path
 import pandas as pd
 
 
-def _plot_metric(
+ALGORITHM_ORDER = ["BGA", "BPSO", "BGWO", "BWOA"]
+
+
+def _plot_metric_on_axis(
+    axis,
     results: pd.DataFrame,
-    output_path: Path,
     metric_column: str,
     y_label: str,
     title: str,
-    dataset_name: str | None = None,
 ) -> None:
-    """Plot one metric against input size for all algorithms."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    plt.figure(figsize=(9, 6))
-    algorithm_order = ["BGA", "BPSO", "BGWO", "BWOA"]
-    for algorithm in algorithm_order:
+    """Plot one metric against input size on an existing subplot axis."""
+    for algorithm in ALGORITHM_ORDER:
         group = results[results["algorithm"] == algorithm]
         if group.empty:
             continue
         ordered = group.sort_values("input_features")
-        plt.plot(
+        axis.plot(
             ordered["input_features"],
             ordered[metric_column],
             marker="o",
             linewidth=2,
             label=algorithm,
         )
-    plt.xlabel("Input size (number of features)")
-    plt.ylabel(y_label)
-    if dataset_name:
-        title = f"{title} ({dataset_name})"
-    plt.title(title)
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
-
-
-def plot_execution_time(results: pd.DataFrame, output_path: Path, dataset_name: str | None = None) -> None:
-    """Plot execution time against input size for all algorithms."""
-    _plot_metric(
-        results=results,
-        output_path=output_path,
-        metric_column="runtime_seconds",
-        y_label="Execution time (seconds)",
-        title="Execution Time of Metaheuristic Feature Selection Algorithms",
-        dataset_name=dataset_name,
-    )
-
-
-def plot_accuracy(results: pd.DataFrame, output_path: Path, dataset_name: str | None = None) -> None:
-    """Plot final test classification accuracy against input size for all algorithms."""
-    _plot_metric(
-        results=results,
-        output_path=output_path,
-        metric_column="test_accuracy",
-        y_label="Test accuracy",
-        title="Final Test Accuracy of Selected Feature Subsets",
-        dataset_name=dataset_name,
-    )
-
-
-def plot_selected_feature_count(results: pd.DataFrame, output_path: Path, dataset_name: str | None = None) -> None:
-    """Plot selected feature count against input size for all algorithms."""
-    _plot_metric(
-        results=results,
-        output_path=output_path,
-        metric_column="selected_count",
-        y_label="Number of selected features",
-        title="Selected Feature Count of Metaheuristic Algorithms",
-        dataset_name=dataset_name,
-    )
+    axis.set_xlabel("Input size (number of features)")
+    axis.set_ylabel(y_label)
+    axis.set_title(title)
+    axis.grid(True, alpha=0.3)
+    axis.legend()
 
 
 def _parse_convergence_history(history: str) -> list[float]:
     return [float(value) for value in str(history).split(";") if value]
 
 
-def plot_convergence(results: pd.DataFrame, output_path: Path, dataset_name: str | None = None) -> None:
-    """Plot best-fitness convergence for the largest input size of one dataset."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
+def _plot_convergence_on_axis(axis, results: pd.DataFrame) -> None:
+    """Plot best-fitness convergence on an existing subplot axis."""
     largest_input_size = int(results["input_features"].max())
     convergence_rows = results[results["input_features"] == largest_input_size]
 
-    plt.figure(figsize=(9, 6))
-    algorithm_order = ["BGA", "BPSO", "BGWO", "BWOA"]
-    for algorithm in algorithm_order:
+    for algorithm in ALGORITHM_ORDER:
         group = convergence_rows[convergence_rows["algorithm"] == algorithm]
         if group.empty:
             continue
         history = _parse_convergence_history(group.iloc[0]["convergence_history"])
-        plt.plot(
+        axis.plot(
             range(len(history)),
             history,
             marker="o",
@@ -110,14 +57,46 @@ def plot_convergence(results: pd.DataFrame, output_path: Path, dataset_name: str
             label=algorithm,
         )
 
-    title = f"Convergence Curve at {largest_input_size} Input Features"
-    if dataset_name:
-        title = f"{title} ({dataset_name})"
-    plt.xlabel("Iteration")
-    plt.ylabel("Best fitness")
-    plt.title(title)
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
+    axis.set_xlabel("Iteration")
+    axis.set_ylabel("Best fitness")
+    axis.set_title(f"Convergence Curve at {largest_input_size} Input Features")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+
+
+def plot_dataset_summary(results: pd.DataFrame, output_path: Path, dataset_name: str) -> None:
+    """Create one 2x2 summary image for a dataset's four experiment graphs."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    figure, axes = plt.subplots(2, 2, figsize=(14, 10))
+    figure.suptitle(f"Feature Selection Results ({dataset_name})", fontsize=16)
+
+    _plot_metric_on_axis(
+        axes[0, 0],
+        results,
+        "runtime_seconds",
+        "Execution time (seconds)",
+        "Execution Time",
+    )
+    _plot_metric_on_axis(
+        axes[0, 1],
+        results,
+        "test_accuracy",
+        "Test accuracy",
+        "Final Test Accuracy",
+    )
+    _plot_metric_on_axis(
+        axes[1, 0],
+        results,
+        "selected_count",
+        "Number of selected features",
+        "Selected Feature Count",
+    )
+    _plot_convergence_on_axis(axes[1, 1], results)
+
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=200)
+    plt.close(figure)
