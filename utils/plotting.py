@@ -15,24 +15,17 @@ def _plot_metric_on_axis(
     y_label: str,
     title: str,
 ) -> None:
-    """Plot one metric against input size on an existing subplot axis."""
-    for algorithm in ALGORITHM_ORDER:
-        group = results[results["algorithm"] == algorithm]
-        if group.empty:
-            continue
-        ordered = group.sort_values("input_features")
-        axis.plot(
-            ordered["input_features"],
-            ordered[metric_column],
-            marker="o",
-            linewidth=2,
-            label=algorithm,
-        )
-    axis.set_xlabel("Input size (number of features)")
+    """Plot one metric as a bar chart for all algorithms."""
+    available_results = results.set_index("algorithm")
+    algorithms = [algorithm for algorithm in ALGORITHM_ORDER if algorithm in available_results.index]
+    values = [available_results.loc[algorithm, metric_column] for algorithm in algorithms]
+
+    bars = axis.bar(algorithms, values)
+    axis.bar_label(bars, fmt="%.3g", padding=3)
+    axis.set_xlabel("Algorithm")
     axis.set_ylabel(y_label)
     axis.set_title(title)
-    axis.grid(True, alpha=0.3)
-    axis.legend()
+    axis.grid(True, axis="y", alpha=0.3)
 
 
 def _parse_convergence_history(history: str) -> list[float]:
