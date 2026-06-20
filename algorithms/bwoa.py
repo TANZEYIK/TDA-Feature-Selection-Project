@@ -17,7 +17,8 @@ def binary_whale_optimization_algorithm(
     rng: np.random.Generator,
     population_size: int,
     iterations: int,
-) -> tuple[np.ndarray, float]:
+    progress_callback: Callable[[int, float], None] | None = None,
+) -> tuple[np.ndarray, float, list[float]]:
     """Binary Whale Optimization Algorithm for feature subset selection."""
     positions = rng.uniform(0, 1, size=(population_size, n_features))
     binary_positions = (positions > 0.5).astype(int)
@@ -29,6 +30,7 @@ def binary_whale_optimization_algorithm(
     best_position = positions[best_index].copy()
     best_mask = binary_positions[best_index].copy()
     best_score = float(scores[best_index])
+    best_fitness_history = [best_score]
 
     for iteration in range(iterations):
         a = 2 - 2 * (iteration / max(iterations - 1, 1))
@@ -66,5 +68,8 @@ def binary_whale_optimization_algorithm(
             best_score = current_best_score
             best_position = positions[current_best_index].copy()
             best_mask = binary_positions[current_best_index].copy()
+        best_fitness_history.append(best_score)
+        if progress_callback is not None:
+            progress_callback(iteration + 1, best_score)
 
-    return best_mask, best_score
+    return best_mask, best_score, best_fitness_history

@@ -16,9 +16,10 @@ def binary_genetic_algorithm(
     rng: np.random.Generator,
     population_size: int,
     iterations: int,
+    progress_callback: Callable[[int, float], None] | None = None,
     crossover_rate: float = 0.80,
     mutation_rate: float = 0.05,
-) -> tuple[np.ndarray, float]:
+) -> tuple[np.ndarray, float, list[float]]:
     """Binary Genetic Algorithm for feature subset selection."""
     population = rng.integers(0, 2, size=(population_size, n_features))
     for i in range(population_size):
@@ -28,13 +29,14 @@ def binary_genetic_algorithm(
     best_index = int(np.argmin(scores))
     best_mask = population[best_index].copy()
     best_score = float(scores[best_index])
+    best_fitness_history = [best_score]
 
     def tournament_select() -> np.ndarray:
         candidates = rng.choice(population_size, size=3, replace=False)
         winner = candidates[int(np.argmin(scores[candidates]))]
         return population[winner].copy()
 
-    for _ in range(iterations):
+    for iteration in range(1, iterations + 1):
         new_population = []
         while len(new_population) < population_size:
             parent_1 = tournament_select()
@@ -62,5 +64,8 @@ def binary_genetic_algorithm(
         if current_best_score < best_score:
             best_score = current_best_score
             best_mask = population[current_best_index].copy()
+        best_fitness_history.append(best_score)
+        if progress_callback is not None:
+            progress_callback(iteration, best_score)
 
-    return best_mask, best_score
+    return best_mask, best_score, best_fitness_history

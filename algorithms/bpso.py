@@ -16,10 +16,11 @@ def binary_particle_swarm_optimization(
     rng: np.random.Generator,
     population_size: int,
     iterations: int,
+    progress_callback: Callable[[int, float], None] | None = None,
     inertia: float = 0.72,
     cognitive: float = 1.49,
     social: float = 1.49,
-) -> tuple[np.ndarray, float]:
+) -> tuple[np.ndarray, float, list[float]]:
     """Binary Particle Swarm Optimization for feature subset selection."""
     positions = rng.integers(0, 2, size=(population_size, n_features))
     velocities = rng.uniform(-1, 1, size=(population_size, n_features))
@@ -31,8 +32,9 @@ def binary_particle_swarm_optimization(
     global_index = int(np.argmin(personal_scores))
     global_best = personal_best[global_index].copy()
     global_score = float(personal_scores[global_index])
+    best_fitness_history = [global_score]
 
-    for _ in range(iterations):
+    for iteration in range(1, iterations + 1):
         r1 = rng.random((population_size, n_features))
         r2 = rng.random((population_size, n_features))
         velocities = (
@@ -55,5 +57,8 @@ def binary_particle_swarm_optimization(
         if current_global_score < global_score:
             global_score = current_global_score
             global_best = personal_best[current_global_index].copy()
+        best_fitness_history.append(global_score)
+        if progress_callback is not None:
+            progress_callback(iteration, global_score)
 
-    return global_best, global_score
+    return global_best, global_score, best_fitness_history

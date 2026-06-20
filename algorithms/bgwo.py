@@ -16,7 +16,8 @@ def binary_grey_wolf_optimizer(
     rng: np.random.Generator,
     population_size: int,
     iterations: int,
-) -> tuple[np.ndarray, float]:
+    progress_callback: Callable[[int, float], None] | None = None,
+) -> tuple[np.ndarray, float, list[float]]:
     """Binary Grey Wolf Optimizer for feature subset selection."""
     positions = rng.uniform(0, 1, size=(population_size, n_features))
     binary_positions = (positions > 0.5).astype(int)
@@ -34,6 +35,7 @@ def binary_grey_wolf_optimizer(
     delta_pos = positions[order[2]].copy()
     best_mask = binary_positions[order[0]].copy()
     best_score = float(scores[order[0]])
+    best_fitness_history = [best_score]
 
     for iteration in range(iterations):
         a = 2 - 2 * (iteration / max(iterations - 1, 1))
@@ -62,5 +64,8 @@ def binary_grey_wolf_optimizer(
         if scores[order[0]] < best_score:
             best_score = float(scores[order[0]])
             best_mask = binary_positions[order[0]].copy()
+        best_fitness_history.append(best_score)
+        if progress_callback is not None:
+            progress_callback(iteration + 1, best_score)
 
-    return best_mask, best_score
+    return best_mask, best_score, best_fitness_history
