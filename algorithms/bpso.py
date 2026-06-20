@@ -1,0 +1,59 @@
+from __future__ import annotations
+
+from typing import Callable
+
+import numpy as np
+
+from utils.helpers import ensure_non_empty, sigmoid
+
+
+FitnessFunction = Callable[[np.ndarray], float]
+
+
+def binary_particle_swarm_optimization(
+    n_features: int,
+    fitness_fn: FitnessFunction,
+    rng: np.random.Generator,
+    population_size: int,
+    iterations: int,
+    inertia: float = 0.72,
+    cognitive: float = 1.49,
+    social: float = 1.49,
+) -> tuple[np.ndarray, float]:
+    """Binary Particle Swarm Optimization for feature subset selection."""
+    positions = rng.integers(0, 2, size=(population_size, n_features))
+    velocities = rng.uniform(-1, 1, size=(population_size, n_features))
+    for i in range(population_size):
+        positions[i] = ensure_non_empty(positions[i], rng)
+
+    personal_best = positions.copy()
+    personal_scores = np.array([fitness_fn(p) for p in personal_best])
+    global_index = int(np.argmin(personal_scores))
+    global_best = personal_best[global_index].copy()
+    global_score = float(personal_scores[global_index])
+
+    for _ in range(iterations):
+        r1 = rng.random((population_size, n_features))
+        r2 = rng.random((population_size, n_features))
+        velocities = (
+            inertia * velocities
+            + cognitive * r1 * (personal_best - positions)
+            + social * r2 * (global_best - positions)
+        )
+        probabilities = sigmoid(velocities)
+        positions = (rng.random((population_size, n_features)) < probabilities).astype(int)
+
+        for i in range(population_size):
+            positions[i] = ensure_non_empty(positions[i], rng)
+            score = fitness_fn(positions[i])
+            if score < personal_scores[i]:
+                personal_scores[i] = score
+                personal_best[i] = positions[i].copy()
+
+        current_global_index = int(np.argmin(personal_scores))
+        current_global_score = float(personal_scores[current_global_index])
+        if current_global_score < global_score:
+            global_score = current_global_score
+            global_best = personal_best[current_global_index].copy()
+
+    return global_best, global_score
