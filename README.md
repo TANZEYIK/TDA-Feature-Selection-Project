@@ -111,7 +111,7 @@ validation and test sets.
 The fitness function is minimized:
 
 ```text
-fitness = 0.90 * classification_error + 0.10 * selected_feature_ratio
+fitness = 0.99 * classification_error + 0.01 * selected_feature_ratio
 ```
 
 This means a better solution should:

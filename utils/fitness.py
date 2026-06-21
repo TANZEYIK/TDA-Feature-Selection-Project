@@ -45,8 +45,8 @@ def make_fitness_function(
     y_train: np.ndarray,
     y_validation: np.ndarray,
     rng: np.random.Generator,
-    alpha: float = 0.90,
-    beta: float = 0.10,
+    alpha: float = 0.99,
+    beta: float = 0.01,
 ) -> tuple[FitnessFunction, Callable[[np.ndarray], float]]:
     """
     Create the fitness function for feature selection.
