@@ -4,9 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from scipy.sparse import csr_matrix, issparse
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from scipy.sparse import csr_matrix
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -14,24 +12,15 @@ DATASET_DIR = PROJECT_DIR / "dataset"
 
 
 DATASET_FILES = {
-    "arcene": "arcene.arff",
     "gisette": "gisette.arff",
-    "dexter": "Dexter.arff",
-    "dorothea": "Dorothea.arff",
-    "madelon": "madelon.arff",
 }
 
 
 @dataclass
-class PreparedDataset:
+class LoadedDataset:
     dataset_name: str
-    input_features: int
-    x_train: np.ndarray | csr_matrix
-    x_validation: np.ndarray | csr_matrix
-    x_test: np.ndarray | csr_matrix
-    y_train: np.ndarray
-    y_validation: np.ndarray
-    y_test: np.ndarray
+    x: np.ndarray | csr_matrix
+    y: np.ndarray
     feature_names: np.ndarray
 
 
@@ -142,42 +131,7 @@ def _parse_sparse_arff_rows(data_lines: list[str], n_features: int) -> tuple[csr
     return x, np.asarray(labels)
 
 
-def prepare_dataset(dataset_name: str, random_state: int) -> PreparedDataset:
-    """Load, split, and scale the full feature set for one dataset."""
-    x, y, all_feature_names = load_dataset(dataset_name)
-    total_features = x.shape[1]
-
-    if issparse(x):
-        x = x.tocsr()
-
-    x_train_validation, x_test, y_train_validation, y_test = train_test_split(
-        x,
-        y,
-        test_size=0.20,
-        random_state=random_state,
-        stratify=y,
-    )
-    x_train, x_validation, y_train, y_validation = train_test_split(
-        x_train_validation,
-        y_train_validation,
-        test_size=0.25,
-        random_state=random_state + 1,
-        stratify=y_train_validation,
-    )
-
-    scaler = StandardScaler(with_mean=not issparse(x_train))
-    x_train = scaler.fit_transform(x_train)
-    x_validation = scaler.transform(x_validation)
-    x_test = scaler.transform(x_test)
-
-    return PreparedDataset(
-        dataset_name=dataset_name,
-        input_features=total_features,
-        x_train=x_train,
-        x_validation=x_validation,
-        x_test=x_test,
-        y_train=y_train,
-        y_validation=y_validation,
-        y_test=y_test,
-        feature_names=all_feature_names,
-    )
+def load_named_dataset(dataset_name: str) -> LoadedDataset:
+    """Load one dataset with its normalized name and generated feature names."""
+    x, y, feature_names = load_dataset(dataset_name)
+    return LoadedDataset(dataset_name=dataset_name.lower(), x=x, y=y, feature_names=feature_names)

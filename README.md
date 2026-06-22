@@ -1,204 +1,102 @@
-# TDA6323 Part 2: Metaheuristic Feature Selection Experiment
+# TDA6323 Part 2: Filter-Based Feature Selection Experiment
 
-This folder contains the Python implementation for Part 2 of the TDA6323 project.
+This project compares three filter-based feature selection algorithms on the
+Gisette dataset:
 
-## Topic
+1. mRMR
+2. ReliefF
+3. CFS-Greedy
 
-A Comparative Study of Metaheuristic Algorithms for Feature Selection
+The analysis is focused on filter methods because their runtime can be explained
+more directly using dataset shape and algorithm steps. Unlike wrapper
+metaheuristics, these algorithms do not repeatedly train a classifier during
+feature selection.
 
-## Algorithms Implemented
+## Main Workflow
 
-The experiment compares four binary metaheuristic feature selection algorithms:
-
-1. Binary Genetic Algorithm (BGA)
-2. Binary Particle Swarm Optimization (BPSO)
-3. Binary Grey Wolf Optimizer (BGWO)
-4. Binary Whale Optimization Algorithm (BWOA)
-
-Each algorithm searches for a binary feature subset:
-
-- `1` means the feature is selected.
-- `0` means the feature is excluded.
-
-The selected feature subset is evaluated using a linear Support Vector Machine
-classifier trained with stochastic gradient descent. The classifier is not the
-main algorithm being compared. It is only the evaluation model used to judge
-whether a selected feature subset gives good classification performance.
-
-## Project Structure
+Run the experiment from:
 
 ```text
-part2_feature_selection/
-|-- main.py
-|-- requirements.txt
-|-- README.md
-|-- algorithms/
-|   |-- bga.py
-|   |-- bpso.py
-|   |-- bgwo.py
-|   `-- bwoa.py
-|-- utils/
-|   |-- data_loader.py
-|   |-- fitness.py
-|   |-- helpers.py
-|   `-- plotting.py
-|-- dataset/
-|   |-- arcene.arff
-|   |-- gisette.arff
-|   |-- Dexter.arff
-|   |-- Dorothea.arff
-|   `-- madelon.arff
-`-- results/
-    |-- execution_time_results.csv
-    |-- arcene_summary.png
-    |-- dexter_summary.png
-    |-- dorothea_summary.png
-    |-- gisette_summary.png
-    `-- madelon_summary.png
+time_complexity_analysis.ipynb
 ```
 
-## Datasets
+The old `main.py` script has been retired and only points to the notebook.
 
-The code uses the five NIPS 2003 feature selection challenge datasets. The files
-must be downloaded manually and placed in the `dataset/` folder:
+## Dataset
+
+The experiment uses the local Gisette ARFF file:
 
 ```text
-dataset/
-|-- arcene.arff
-|-- gisette.arff
-|-- Dexter.arff
-|-- Dorothea.arff
-`-- madelon.arff
+dataset/gisette.arff
 ```
 
-The code does not download datasets automatically. This keeps the experiment
-reproducible when the project is run on another computer.
+The local ARFF contains the labeled part of Gisette: 7000 rows and 5000
+features. The original challenge also included an unlabeled test set, but this
+project uses labeled rows only.
 
 ## Input Sizes
 
-The experiment runs each dataset using its full feature set.
-
-Default full input sizes:
+The notebook creates nested stratified subsamples:
 
 ```text
-arcene:   10,000 features
-gisette:  5,000 features
-dexter:   20,000 features
-dorothea: 100,000 features
-madelon:  500 features
+0.1, 0.2, 0.3, ..., 1.0
 ```
 
-The code no longer samples partial feature pools such as 100, 200, 300, 400,
-and 500 features. Each algorithm searches over the full feature space of the
-dataset being evaluated.
-
-## Data Splitting
-
-The code uses three sets:
+All 5000 features are kept before feature selection. Input size is reported as:
 
 ```text
-train set       -> train the linear SVM model
-validation set  -> calculate fitness during algorithm search
-test set        -> report final accuracy only after the best subset is selected
+rows * features
 ```
 
-This avoids data leakage. The test set is not used during the search process.
-The scaler is also fitted on the training set only, then applied to the
-validation and test sets.
+The notebook also reports nonzero count and density because Gisette is stored in
+sparse format but has very high density.
 
-## Fitness Function
+## Algorithms
 
-The fitness function is minimized:
+The filter algorithms are implemented under `algorithms/`. Each algorithm
+accepts the training data and labels, then returns a selected feature mask plus
+metadata.
+
+- `mrmr.py`: correlation-based minimum redundancy maximum relevance.
+- `relieff.py`: nearest-hit / nearest-miss ReliefF feature weighting.
+- `cfs_greedy.py`: greedy correlation-based feature subset search.
+
+mRMR and ReliefF select the top 10% of Gisette features. CFS-Greedy stops when
+the subset merit no longer improves or when it reaches the same top-10% cap.
+
+## Evaluation
+
+For each subsample size:
+
+1. Split the subsample into stratified train/test sets.
+2. Run each filter algorithm on the training split only.
+3. Train a Linear SVM using the selected feature subset.
+4. Evaluate accuracy on the held-out test split.
+
+The notebook also trains one full-feature baseline Linear SVM on the full
+Gisette train/test split.
+
+## Outputs
+
+Notebook outputs are saved under:
 
 ```text
-fitness = 0.99 * classification_error + 0.01 * selected_feature_ratio
+results/filter_analysis/
 ```
 
-This means a better solution should:
+Expected outputs include:
 
-- produce higher validation accuracy
-- select fewer features
+- `gisette_subsample_summary.csv`
+- `filter_feature_selection_results.csv`
+- `baseline_result.csv`
+- execution-time vs input-size graph
+- selected-feature-count vs input-size graph
+- best-accuracy comparison bar chart
 
-The final test accuracy is reported separately after the algorithm finishes.
+## Dependencies
 
-## Early Stopping
-
-Each algorithm stops early if the best fitness does not improve by at least
-`0.001` for 5 consecutive iterations. The convergence history records the best
-fitness values up to the actual final iteration.
-
-## How to Run
-
-Install the required packages if needed:
+Install the required packages:
 
 ```powershell
 pip install -r requirements.txt
 ```
-
-Run the default experiment:
-
-```powershell
-python main.py
-```
-
-Recommended final experiment:
-
-```powershell
-python main.py --population-size 10 --iterations 30 --output-dir results_final
-```
-
-Run a quick check before the final experiment:
-
-```powershell
-python main.py --datasets madelon --population-size 3 --iterations 2 --output-dir results_quick_check
-```
-
-## Output Files
-
-The output folder contains:
-
-```text
-execution_time_results.csv
-arcene_summary.png
-dexter_summary.png
-dorothea_summary.png
-gisette_summary.png
-madelon_summary.png
-```
-
-Each summary PNG contains the execution time, final test accuracy, selected
-feature count, and convergence curve for one dataset.
-
-The CSV file contains:
-
-- `dataset`
-- `algorithm`
-- `input_features`
-- `runtime_seconds`
-- `best_fitness`
-- `validation_accuracy`
-- `test_accuracy`
-- `selected_count`
-- `selected_feature_preview`
-- `convergence_history`
-- `iterations_run`
-- `stopped_early`
-
-## Report Usage
-
-Use the generated results for the Experimental Analysis section:
-
-- Figure 1: Execution time vs input size
-- Figure 2: Final test accuracy vs input size
-- Figure 3: Selected feature count vs input size
-- Figure 4: Convergence curve
-
-The most important required graph is execution time vs input size. The accuracy,
-selected-feature-count, and convergence graphs are added to make the result
-analysis clearer.
-
-## Notes
-
-The implementations are written for coursework analysis. They are intentionally
-kept readable so the algorithm flow can be explained line by line in the report
-or presentation.
